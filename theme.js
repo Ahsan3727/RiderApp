@@ -1,0 +1,51 @@
+export const Colors = {
+  primary50: '#f0fdf4',
+  primary100: '#dcfce7',
+  primary200: '#bbf7d0',
+  primary300: '#86efac',
+  primary400: '#4ade80',
+  primary500: '#22c55e',
+  primary600: '#16a34a',
+  primary700: '#15803d',
+  primary800: '#166534',
+  primary900: '#14532d',
+  white: '#ffffff',
+  gray50: '#f8fafc',
+  gray100: '#f1f5f9',
+  gray200: '#e2e8f0',
+  gray300: '#cbd5e1',
+  gray400: '#94a3b8',
+  gray500: '#64748b',
+  gray600: '#475569',
+  gray700: '#334155',
+  gray800: '#1e293b',
+  gray900: '#0f172a',
+  red: '#ef4444',
+  red50: '#fef2f2',
+  amber: '#f59e0b',
+  amber50: '#fffbeb',
+  amber600: '#d97706',
+  blue: '#3b82f6',
+  blue50: '#eff6ff',
+  blue600: '#2563eb',
+  purple: '#8b5cf6',
+  purple50: '#f5f3ff',
+  teal: '#0d9488',
+  teal50: '#f0fdfa',
+};
+
+export const Fonts = {
+  sizes: { xs: 11, sm: 13, md: 15, lg: 17, xl: 20, xxl: 24 },
+  regular: { fontWeight: '400' },
+  medium: { fontWeight: '500' },
+  semibold: { fontWeight: '600' },
+  bold: { fontWeight: '700' },
+  extrabold: { fontWeight: '800' },
+};
+
+export const Radius = { sm: 10, md: 14, lg: 18, xl: 22, full: 9999 };
+export const Shadows = {
+  sm: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+  md: { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 16, elevation: 3 },
+  lg: { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 28, elevation: 5 },
+};
