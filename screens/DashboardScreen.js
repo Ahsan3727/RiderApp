@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useActiveOrder } from '../context/ActiveOrderContext';
@@ -11,59 +11,126 @@ import ToggleSwitch from '../components/ToggleSwitch';
 import OrderStatusBadge from '../components/OrderStatusBadge';
 import BottomTabBar from '../components/BottomTabBar';
 import { Colors, Fonts, Shadows, Radius } from '../theme';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function DashboardScreen({ navigation }) {
   const { rider, logout } = useAuth();
-  const { isOnline, goOnline, goOffline, activeOrder, fetchAvailableOrders, availableOrders } = useActiveOrder();
+  const {
+    isOnline,
+    goOnline,
+    goOffline,
+    activeOrder,
+    fetchAvailableOrders,
+    availableOrders,
+    fetchActiveOrder,
+  } = useActiveOrder();
   useLocationTracking(true);
-  const [stats, setStats] = useState({ today: 0, week: 0, month: 0, deliveries: 0, rating: 5.0, acceptance: 94 });
+
+  const [stats, setStats] = useState({
+    todayDeliveries: 0,
+    unsettledCOD: 0,
+    totalDeliveries: 0,
+    rating: 5.0,
+  });
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchStats = async () => {
-    try { const { data } = await api.get('/rider/dashboard'); if (data) setStats(prev => ({ ...prev, today: data.todayEarnings || 0, week: data.weekEarnings || 0, month: data.monthEarnings || 0, deliveries: data.totalDeliveries || 0, rating: data.rating || 5.0 })); } catch (e) { }
+    try {
+      const { data } = await api.get('/rider/dashboard');
+      if (data) {
+        setStats({
+          todayDeliveries: data.todayDeliveries || 0,
+          unsettledCOD: data.unsettledCOD || 0,
+          totalDeliveries: data.totalDeliveries || 0,
+          rating: data.rating || 5.0,
+        });
+      }
+    } catch (e) {
+      console.log('Dashboard stats error', e);
+    }
   };
 
-  useEffect(() => { fetchStats(); }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchStats();
+      fetchAvailableOrders();
+      fetchActiveOrder();
+    }, [])
+  );
 
-  const onRefresh = async () => { setRefreshing(true); await fetchStats(); await fetchAvailableOrders(); setRefreshing(false); };
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchStats();
+    await fetchAvailableOrders();
+    setRefreshing(false);
+  };
 
-  const toggleOnline = () => { if (isOnline) goOffline(); else goOnline(); };
+  const toggleOnline = () => {
+    if (isOnline) goOffline();
+    else goOnline();
+  };
 
   const handleLogout = async () => {
-    Alert.alert('Logout', 'Are you sure?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Logout', style: 'destructive', onPress: async () => { await AsyncStorage.clear(); if (typeof window !== 'undefined') window.location.reload(); else navigation.reset({ index: 0, routes: [{ name: 'Login' }] }); } }]);
+    Alert.alert('Logout', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          await AsyncStorage.clear();
+          if (typeof window !== 'undefined') window.location.reload();
+          else navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        },
+      },
+    ]);
   };
 
   return (
     <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 100 }} // space for bottom tab bar
+        contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{(rider?.name || 'R')[0].toUpperCase()}</Text></View>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{(rider?.name || 'R')[0].toUpperCase()}</Text>
+            </View>
             <View>
               <Text style={styles.greeting}>Hello, {rider?.name?.split(' ')[0] || 'Rider'}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Text style={{ color: Colors.amber, fontSize: 12 }}>⭐ {stats.rating}</Text>
-                <Text style={{ color: Colors.gray400, fontSize: 12 }}>· {stats.deliveries} deliveries</Text>
+                <Text style={{ color: Colors.gray400, fontSize: 12 }}>· {stats.totalDeliveries} deliveries</Text>
               </View>
             </View>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: isOnline ? Colors.primary600 : Colors.gray400 }}>{isOnline ? 'Online' : 'Offline'}</Text>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: isOnline ? Colors.primary600 : Colors.gray400 }}>
+              {isOnline ? 'Online' : 'Offline'}
+            </Text>
             <ToggleSwitch value={isOnline} onToggle={toggleOnline} />
           </View>
         </View>
 
-        {/* Stats Grid */}
+        {/* Stats Grid – without Deposited */}
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: Colors.primary50 }]}><Text style={styles.statIcon}>💰</Text><Text style={styles.statValue}>${stats.today.toFixed(2)}</Text><Text style={styles.statLabel}>Today</Text></View>
-          <View style={[styles.statCard, { backgroundColor: Colors.blue50 }]}><Text style={styles.statIcon}>📦</Text><Text style={styles.statValue}>{stats.deliveries}</Text><Text style={styles.statLabel}>Completed</Text></View>
-          <View style={[styles.statCard, { backgroundColor: Colors.amber50 }]}><Text style={styles.statIcon}>⏱️</Text><Text style={styles.statValue}>22 min</Text><Text style={styles.statLabel}>Avg Time</Text></View>
-          <View style={[styles.statCard, { backgroundColor: Colors.purple50 }]}><Text style={styles.statIcon}>🎯</Text><Text style={styles.statValue}>{stats.acceptance}%</Text><Text style={styles.statLabel}>Acceptance</Text></View>
+          <View style={[styles.statCard, { backgroundColor: Colors.blue50 }]}>
+            <Text style={styles.statIcon}>📦</Text>
+            <Text style={styles.statValue}>{stats.todayDeliveries}</Text>
+            <Text style={styles.statLabel}>Completed Today</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: Colors.amber50 }]}>
+            <Text style={styles.statIcon}>💵</Text>
+            <Text style={styles.statValue}>Rs. {stats.unsettledCOD.toFixed(0)}</Text>
+            <Text style={styles.statLabel}>COD to Deposit</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: Colors.primary50 }]}>
+            <Text style={styles.statIcon}>📊</Text>
+            <Text style={styles.statValue}>{stats.totalDeliveries}</Text>
+            <Text style={styles.statLabel}>Total Deliveries</Text>
+          </View>
         </View>
 
         {/* Available Orders */}
@@ -87,7 +154,7 @@ export default function DashboardScreen({ navigation }) {
               <Text style={{ fontSize: 13, color: Colors.gray600, marginBottom: 4 }}>📍 {order.pickup?.split(',')[0] || order.wholesaler?.storeName}</Text>
               <Text style={{ fontSize: 13, color: Colors.gray600, marginBottom: 8 }}>🏠 {order.dropoff?.split(',')[0] || order.deliveryAddress?.street}</Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ fontWeight: '700', color: Colors.primary600 }}>${order.payment?.amount?.toFixed(2)}</Text>
+                <Text style={{ fontWeight: '700', color: Colors.primary600 }}>Rs. {order.payment?.amount?.toFixed(2)}</Text>
                 <AppButton title="Accept" size="sm" onPress={() => navigation.navigate('OrderAssigned', { order })} />
               </View>
             </Card>
@@ -106,11 +173,8 @@ export default function DashboardScreen({ navigation }) {
             <AppButton title="Continue Current Order" onPress={() => navigation.navigate('OrderAssigned', { order: activeOrder })} />
           </Card>
         )}
-
-        {/* Removed Quick Actions – now in bottom tab bar */}
       </ScrollView>
 
-      {/* Bottom Tab Bar */}
       <BottomTabBar navigation={navigation} activeScreen="Dashboard" />
     </View>
   );

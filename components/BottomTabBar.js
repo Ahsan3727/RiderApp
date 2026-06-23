@@ -6,7 +6,7 @@ const tabs = [
   { label: 'Home', icon: '🏠', screen: 'Dashboard' },
   { label: 'Orders', icon: '📋', screen: 'Waiting' },
   { label: 'Active', icon: '🚚', screen: 'OrderAssigned' }, // will show active order if exists
-  { label: 'Earnings', icon: '💰', screen: 'EarningsHistory' },
+  { label: 'History', icon: '💰', screen: 'OrderHistory' },
   { label: 'Profile', icon: '👤', screen: 'Profile' },
 ];
 

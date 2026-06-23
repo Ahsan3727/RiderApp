@@ -5,10 +5,27 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "sdkVersion": "54.0.0",
-    "platforms": ["android"],
-    "plugins": [],
+    "platforms": [
+      "android"
+    ],
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Groxo to access your location even when the app is closed.",
+          "locationAlwaysPermission": "Allow Groxo to access your location in the background.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isIosBackgroundLocationEnabled": true
+        }
+      ]
+    ],
     "android": {
       "package": "com.grocerase.rider"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "240d59d1-380a-476b-b287-24e7c085fc5d"
+      }
     }
   }
 }
