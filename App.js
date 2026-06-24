@@ -17,6 +17,26 @@ import SettingsScreen from './screens/SettingsScreen';
 import MapScreen from './screens/MapScreen';
 import { ActivityIndicator, View } from 'react-native';
 import { LogBox } from 'react-native';
+import * as Updates from 'expo-updates';
+
+useEffect(() => {
+  console.log('Update check:', Updates.checkForUpdateAsync);
+  Updates.checkForUpdateAsync()
+    .then(update => {
+      if (update.isAvailable) {
+        console.log('Update available, downloading...');
+        return Updates.fetchUpdateAsync();
+      } else {
+        console.log('No update available');
+      }
+    })
+    .then(result => {
+      if (result?.isNew) {
+        console.log('Update downloaded, will apply on next restart');
+      }
+    })
+    .catch(err => console.error('Update error:', err));
+}, []);
 LogBox.ignoreLogs(['Warning: Failed prop type']); // not a real fix, but suppresses warnings
 
 const Stack = createNativeStackNavigator();
