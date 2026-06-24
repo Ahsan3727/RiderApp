@@ -322,17 +322,31 @@ export default function OrderAssignedScreen({ navigation, route }) {
             <Text style={styles.sectionTitle}>🛍️ Pickup Stops</Text>
             {currentOrder.wholesalerGroups.map((group, idx) => (
               <View key={idx} style={styles.groupBox}>
-                <Text style={styles.groupStore}>
-                  {group.storeName || group.wholesaler?.storeName || group.wholesaler?.name || 'Store'}
-                </Text>
-                <Text style={styles.groupStatus}>
-                  Status: {group.status === 'ready_for_pickup' ? '✅ Ready' : '⏳ Packing'}
-                </Text>
-                {group.items?.map((item, i) => (
-                  <Text key={i} style={styles.groupItem}>
-                    • {item.product?.name || 'Product'} x{item.quantity} – Rs. {item.price * item.quantity}
+                <View style={styles.groupHeader}>
+                  <Text style={styles.groupStore}>
+                    {group.storeName || group.wholesaler?.storeName || group.wholesaler?.name || 'Store'}
                   </Text>
-                ))}
+                </View>
+
+                {/* --- Items table --- */}
+                <View style={styles.itemsTable}>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderText, { flex: 2 }]}>Item</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'center' }]}>Qty</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Price</Text>
+                  </View>
+                  {group.items?.map((item, i) => (
+                    <View key={i} style={styles.tableRow}>
+                      <Text style={[styles.tableCell, { flex: 2 }]} numberOfLines={1}>
+                        {item.product?.name || 'Product'}
+                      </Text>
+                      <Text style={[styles.tableCell, { flex: 1, textAlign: 'center' }]}>x{item.quantity}</Text>
+                      <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>
+                        Rs. {item.price * item.quantity}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             ))}
           </>
@@ -388,6 +402,7 @@ export default function OrderAssignedScreen({ navigation, route }) {
   );
 }
 
+// ---------- Styles ----------
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.gray100 },
   orderCard: {
@@ -409,9 +424,29 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 8,
   },
-  groupStore: { fontWeight: '700', fontSize: 14, color: '#FF7F2A' },
-  groupStatus: { fontSize: 12, color: '#6b7280', marginBottom: 4 },
-  groupItem: { fontSize: 13, color: '#374151', marginLeft: 8 },
+  groupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  groupStore: { fontWeight: '700', fontSize: 14, color: '#FF7F2A', flex: 1 },
+  groupStatus: { fontSize: 12, color: '#6b7280' },
+  itemsTable: { marginTop: 4 },
+  tableHeader: {
+    flexDirection: 'row',
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  tableHeaderText: { fontSize: 11, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase' },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#f3f4f6',
+  },
+  tableCell: { fontSize: 14, fontWeight: '500', color: '#374151' },
   // Small rider marker (28x28)
   riderMarkerBox: {
     alignItems: 'center',
