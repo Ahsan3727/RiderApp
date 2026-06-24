@@ -8,6 +8,7 @@ import {
   Platform,
   Linking,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import Constants from 'expo-constants';
 import { WebView } from 'react-native-webview';
@@ -20,20 +21,10 @@ import OrderStatusBadge from '../components/OrderStatusBadge';
 import BottomTabBar from '../components/BottomTabBar';
 import { Colors, Fonts, Radius, Shadows } from '../theme';
 
-// ---------- Only load native maps outside Expo Go ----------
-let MapView = null;
-let Marker = null;
-let Polyline = null;
-if (Constants.appOwnership !== 'expo') {
-  try {
-    const maps = require('react-native-maps');
-    MapView = maps.default || maps;
-    Marker = maps.Marker || (MapView && MapView.Marker);
-    Polyline = maps.Polyline || (MapView && MapView.Polyline);
-  } catch (e) {
-    console.warn('react-native-maps not available:', e.message);
-  }
-}
+// Always use WebView map – no native maps needed
+const MapView = null;
+const Marker = null;
+const Polyline = null;
 
 // ---------- Leaflet map HTML (small markers) ----------
 const mapHTML = (riderLat, riderLng, dropoffLat, dropoffLng) => `
@@ -183,38 +174,6 @@ export default function OrderAssignedScreen({ navigation, route }) {
     }
   }, [riderLocation]);
 
-  // Fetch road route for native map (OSRM)
-  useEffect(() => {
-    const dropoffLat = currentOrder?.deliveryAddress?.lat;
-    const dropoffLng = currentOrder?.deliveryAddress?.lng;
-    if (!riderLocation || !dropoffLat || !dropoffLng) return;
-    const fetchRoute = async () => {
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${riderLocation.longitude},${riderLocation.latitude};${dropoffLng},${dropoffLat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.code === 'Ok' && data.routes.length > 0) {
-          const coords = data.routes[0].geometry.coordinates.map(c => ({
-            latitude: c[1],
-            longitude: c[0],
-          }));
-          setRouteCoords(coords);
-        } else {
-          setRouteCoords([
-            riderLocation,
-            { latitude: dropoffLat, longitude: dropoffLng },
-          ]);
-        }
-      } catch {
-        setRouteCoords([
-          riderLocation,
-          { latitude: dropoffLat, longitude: dropoffLng },
-        ]);
-      }
-    };
-    fetchRoute();
-  }, [riderLocation, currentOrder?.deliveryAddress]);
-
   const handleStatusUpdate = async (newStatus) => {
     setLoading(true);
     try {
@@ -225,7 +184,6 @@ export default function OrderAssignedScreen({ navigation, route }) {
     finally { setLoading(false); }
   };
 
-  // ---------- Google Maps Navigation ----------
   const openGoogleMaps = () => {
     const dropoffLat = currentOrder?.deliveryAddress?.lat;
     const dropoffLng = currentOrder?.deliveryAddress?.lng;
@@ -237,7 +195,7 @@ export default function OrderAssignedScreen({ navigation, route }) {
     const destination = `${dropoffLat},${dropoffLng}`;
     const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
     Linking.openURL(url).catch(() =>
-      Alert.alert('Error', 'Could not open Google Maps. Please install the app.')
+      Alert.alert('Error', 'Could not open Google Maps.')
     );
   };
 
@@ -251,129 +209,142 @@ export default function OrderAssignedScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      {/* ---- Map ---- */}
-      {MapView ? (
-        <MapView
-          style={StyleSheet.absoluteFillObject}
-          initialRegion={{
-            latitude: mapLat,
-            longitude: mapLng,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }}
-          showsUserLocation={false}
-          toolbarEnabled={false}
+      {/* ---- Map (always WebView) ---- */}
+      <View style={StyleSheet.absoluteFillObject}>
+        <WebView
+          ref={webViewRef}
+          source={{ html: mapHTML(mapLat, mapLng, dropoffLat, dropoffLng) }}
+          style={{ flex: 1 }}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          startInLoadingState={false}
+          scrollEnabled={false}
+        />
+      </View>
+
+      {/* Bottom card with full order details */}
+      <View style={styles.bottomSheet}>
+        <ScrollView
+          style={styles.scrollArea}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          {riderLocation && (
-            <Marker coordinate={riderLocation} title="You are here">
-              <View style={styles.riderMarkerBox}>
-                <Text style={styles.riderMarkerIcon}>🏍️</Text>
-              </View>
-            </Marker>
-          )}
-          {dropoffLat && dropoffLng && (
-            <Marker coordinate={{ latitude: dropoffLat, longitude: dropoffLng }} title="Customer">
-              <View style={styles.dropoffMarkerBox}>
-                <Text style={styles.dropoffMarkerIcon}>🏠</Text>
-              </View>
-            </Marker>
-          )}
-          {routeCoords.length > 1 && (
-            <Polyline
-              coordinates={routeCoords}
-              strokeColor="#FF7F2A"
-              strokeWidth={3}
-              lineDashPattern={[6, 4]}
-            />
-          )}
-        </MapView>
-      ) : (
-        <View style={StyleSheet.absoluteFillObject}>
-          <WebView
-            ref={webViewRef}
-            source={{ html: mapHTML(mapLat, mapLng, dropoffLat, dropoffLng) }}
-            style={{ flex: 1 }}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            startInLoadingState={false}
-            scrollEnabled={false}
-          />
-        </View>
-      )}
+          {/* Order ID & Status */}
+          <View style={styles.rowBetween}>
+            <Text style={styles.orderId}>Order #{currentOrder._id.slice(-6)}</Text>
+            <OrderStatusBadge status={currentOrder.status} />
+          </View>
 
-      {/* Bottom card with order details and actions */}
-      <View style={styles.orderCard}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Text style={{ fontWeight: '700', fontSize: Fonts.sizes.lg }}>#{currentOrder._id.slice(-6)}</Text>
-          <OrderStatusBadge status={currentOrder.status} />
-        </View>
-        <Text style={styles.detailText}>Customer: {currentOrder.customer?.name}</Text>
+          {/* Customer */}
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Customer</Text>
+            <Text style={styles.value}>{currentOrder.customer?.name || 'N/A'}</Text>
+          </View>
 
-        {/* ---------- Pickup Stops / Wholesaler Groups ---------- */}
-        {currentOrder.wholesalerGroups?.length > 0 ? (
-          <>
-            <Text style={styles.sectionTitle}>🛍️ Pickup Stops</Text>
-            {currentOrder.wholesalerGroups.map((group, idx) => (
-              <View key={idx} style={styles.groupBox}>
-                <Text style={styles.groupStore}>
-                  {group.storeName || group.wholesaler?.storeName || group.wholesaler?.name || 'Store'}
-                </Text>
-                <Text style={styles.groupStatus}>
-                  Status: {group.status === 'ready_for_pickup' ? '✅ Ready' : '⏳ Packing'}
-                </Text>
-                {group.items?.map((item, i) => (
-                  <Text key={i} style={styles.groupItem}>
-                    • {item.product?.name || 'Product'} x{item.quantity} – Rs. {item.price * item.quantity}
-                  </Text>
-                ))}
-              </View>
-            ))}
-          </>
-        ) : (
-          <Text style={styles.detailText}>
-            Pickup: {currentOrder.wholesaler?.storeName || currentOrder.wholesaler?.name || 'Store'}
-          </Text>
-        )}
+          {/* Pickup Stops (wholesaler groups or single) */}
+          {currentOrder.wholesalerGroups?.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🛍️ Pickup Stops</Text>
+              {currentOrder.wholesalerGroups.map((group, idx) => (
+                <View key={idx} style={styles.groupBox}>
+                  <View style={styles.rowBetween}>
+                    <Text style={styles.groupStore}>
+                      {group.storeName || group.wholesaler?.storeName || group.wholesaler?.name || 'Store'}
+                    </Text>
+                    <Text style={[styles.groupStatus, group.status === 'ready_for_pickup' && styles.statusReady]}>
+                      {group.status === 'ready_for_pickup' ? '✅ Ready' : '⏳ Packing'}
+                    </Text>
+                  </View>
 
-        <Text style={styles.detailText}>Dropoff: {currentOrder.deliveryAddress?.street}, {currentOrder.deliveryAddress?.city}</Text>
-        <Text style={{ fontWeight: '600', marginTop: 8 }}>Amount: Rs. {currentOrder.payment?.amount?.toFixed(2)}</Text>
-
-        {/* ---- Google Maps Navigation Button ---- */}
-        {riderLocation && dropoffLat && dropoffLng && (
-          <TouchableOpacity style={styles.googleMapsButton} onPress={openGoogleMaps}>
-            <Text style={styles.googleMapsText}>🗺️ Navigate with Google Maps</Text>
-          </TouchableOpacity>
-        )}
-
-        <View style={{ marginTop: 16 }}>
-          {currentOrder.status === 'confirmed' && isAssignedRider && (
-            <AppButton
-              title="🚀 Pickup (Skip Packing)"
-              onPress={() => handleStatusUpdate('out_for_delivery')}
-              loading={loading}
-            />
-          )}
-          {(currentOrder.status === 'confirmed' || currentOrder.status === 'packing') && !isAssignedRider && (
-            <Card accent={Colors.amber} style={{ backgroundColor: '#fff3e0' }}>
-              <Text style={{ color: '#e65100', fontWeight: '600', textAlign: 'center' }}>
-                ⏳ Waiting for wholesaler to pack...
+                  {/* Group items */}
+                  <View style={styles.itemsTable}>
+                    <View style={styles.tableHeader}>
+                      <Text style={[styles.tableHeaderText, { flex: 2 }]}>Item</Text>
+                      <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'center' }]}>Qty</Text>
+                      <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Price</Text>
+                    </View>
+                    {group.items?.map((item, i) => (
+                      <View key={i} style={styles.tableRow}>
+                        <Text style={[styles.tableCell, { flex: 2 }]}>{item.product?.name || 'Product'}</Text>
+                        <Text style={[styles.tableCell, { flex: 1, textAlign: 'center' }]}>x{item.quantity}</Text>
+                        <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' }]}>Rs. {item.price * item.quantity}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Pickup</Text>
+              <Text style={styles.value}>
+                {currentOrder.wholesaler?.storeName || currentOrder.wholesaler?.name || 'Store'}
               </Text>
-            </Card>
+            </View>
           )}
-          {currentOrder.status === 'packing' && isAssignedRider && (
-            <Card accent={Colors.amber} style={{ backgroundColor: '#fff3e0' }}>
-              <Text style={{ color: '#e65100', fontWeight: '600', textAlign: 'center' }}>
-                ⏳ Wholesaler is packing...
-              </Text>
-            </Card>
+
+          {/* Dropoff */}
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Dropoff</Text>
+            <Text style={styles.value}>
+              {currentOrder.deliveryAddress?.street}, {currentOrder.deliveryAddress?.city}
+            </Text>
+          </View>
+
+          {/* Amount & Payment Method */}
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Amount</Text>
+            <Text style={styles.valueBold}>
+              Rs. {currentOrder.payment?.amount?.toFixed(2)} ({currentOrder.payment?.method?.toUpperCase() || 'COD'})
+            </Text>
+          </View>
+
+          {/* Google Maps Navigation */}
+          {riderLocation && dropoffLat && dropoffLng && (
+            <TouchableOpacity style={styles.googleMapsButton} onPress={openGoogleMaps}>
+              <Text style={styles.googleMapsText}>🗺️ Navigate with Google Maps</Text>
+            </TouchableOpacity>
           )}
-          {currentOrder.status === 'ready_for_pickup' && isAssignedRider && (
-            <AppButton title="📦 Pickup & Start Delivery" onPress={() => handleStatusUpdate('out_for_delivery')} loading={loading} />
-          )}
-          {currentOrder.status === 'out_for_delivery' && (
-            <AppButton title="✅ Mark Delivered" onPress={() => handleStatusUpdate('delivered')} loading={loading} />
-          )}
-        </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actions}>
+            {currentOrder.status === 'confirmed' && isAssignedRider && (
+              <AppButton
+                title="🚀 Pickup (Skip Packing)"
+                onPress={() => handleStatusUpdate('out_for_delivery')}
+                loading={loading}
+              />
+            )}
+            {(currentOrder.status === 'confirmed' || currentOrder.status === 'packing') && !isAssignedRider && (
+              <Card accent={Colors.amber} style={{ backgroundColor: '#fff3e0' }}>
+                <Text style={{ color: '#e65100', fontWeight: '600', textAlign: 'center' }}>
+                  ⏳ Waiting for wholesaler to pack...
+                </Text>
+              </Card>
+            )}
+            {currentOrder.status === 'packing' && isAssignedRider && (
+              <Card accent={Colors.amber} style={{ backgroundColor: '#fff3e0' }}>
+                <Text style={{ color: '#e65100', fontWeight: '600', textAlign: 'center' }}>
+                  ⏳ Wholesaler is packing...
+                </Text>
+              </Card>
+            )}
+            {currentOrder.status === 'ready_for_pickup' && isAssignedRider && (
+              <AppButton
+                title="📦 Pickup & Start Delivery"
+                onPress={() => handleStatusUpdate('out_for_delivery')}
+                loading={loading}
+              />
+            )}
+            {currentOrder.status === 'out_for_delivery' && (
+              <AppButton
+                title="✅ Mark Delivered"
+                onPress={() => handleStatusUpdate('delivered')}
+                loading={loading}
+              />
+            )}
+          </View>
+        </ScrollView>
       </View>
 
       <BottomTabBar navigation={navigation} activeScreen="OrderAssigned" />
@@ -383,62 +354,112 @@ export default function OrderAssignedScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.gray100 },
-  orderCard: {
-    backgroundColor: Colors.white,
-    padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  bottomSheet: {
     position: 'absolute',
     bottom: 70,
     left: 0,
     right: 0,
+    maxHeight: '55%',               // allows map visibility
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     ...Shadows.md,
   },
-  detailText: { fontSize: 13, color: Colors.gray600, marginBottom: 4 },
-  sectionTitle: { fontWeight: '700', fontSize: 16, marginTop: 12, marginBottom: 8, color: '#1f2937' },
+  scrollArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 30,
+  },
+  rowBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  orderId: {
+    fontWeight: '700',
+    fontSize: 18,
+    color: Colors.gray900,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  label: {
+    fontSize: 14,
+    color: Colors.gray600,
+    fontWeight: '500',
+  },
+  value: {
+    fontSize: 14,
+    color: Colors.gray900,
+    fontWeight: '600',
+    textAlign: 'right',
+    maxWidth: '60%',
+  },
+  valueBold: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  section: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontWeight: '700',
+    fontSize: 16,
+    marginBottom: 10,
+    color: '#1f2937',
+  },
   groupBox: {
     backgroundColor: '#f9fafb',
     borderRadius: 12,
-    padding: 10,
-    marginBottom: 8,
+    padding: 12,
+    marginBottom: 10,
   },
-  groupStore: { fontWeight: '700', fontSize: 14, color: '#FF7F2A' },
-  groupStatus: { fontSize: 12, color: '#6b7280', marginBottom: 4 },
-  groupItem: { fontSize: 13, color: '#374151', marginLeft: 8 },
-  // Small rider marker (28x28)
-  riderMarkerBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 28,
-    height: 28,
-    backgroundColor: '#FF7F2A',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
+  groupStore: {
+    fontWeight: '700',
+    fontSize: 15,
+    color: '#FF7F2A',
+    marginBottom: 4,
   },
-  riderMarkerIcon: { fontSize: 14 },
-  // Small dropoff marker (24x24)
-  dropoffMarkerBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 24,
-    height: 24,
-    backgroundColor: '#3b82f6',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
+  groupStatus: {
+    fontSize: 13,
+    color: '#6b7280',
   },
-  dropoffMarkerIcon: { fontSize: 12 },
+  statusReady: {
+    color: '#16a34a',
+  },
+  itemsTable: {
+    marginTop: 8,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingBottom: 4,
+    marginBottom: 4,
+  },
+  tableHeaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 4,
+  },
+  tableCell: {
+    fontSize: 13,
+    color: '#374151',
+  },
   googleMapsButton: {
     backgroundColor: '#1a73e8',
     paddingVertical: 12,
@@ -450,5 +471,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 15,
+  },
+  actions: {
+    marginTop: 20,
   },
 });
